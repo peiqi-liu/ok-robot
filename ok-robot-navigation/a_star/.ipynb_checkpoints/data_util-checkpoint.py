@@ -43,7 +43,7 @@ from torch import Tensor
 from torch.utils.data.dataset import Dataset
 
 from a_star.dataset_class import PosedRGBDItem
-from a_star.dataset_class import R3DDataset, HomeRobotDataset
+from a_star.dataset_class import R3DDataset
 
 import open3d as o3d
 
@@ -56,8 +56,6 @@ def get_posed_rgbd_dataset(
     # Currently we only support data from Record3D
     if key == "r3d":
         return R3DDataset(path)
-    else:
-        return HomeRobotDataset(path)
 
 
 @dataclass(frozen=True)

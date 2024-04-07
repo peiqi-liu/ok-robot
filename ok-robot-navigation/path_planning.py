@@ -29,6 +29,8 @@ from a_star.map_util import (
 from a_star.path_planner import PathPlanner
 from a_star.data_util import get_posed_rgbd_dataset
 from voxel_map_localizer import VoxelMapLocalizer
+from voxel_map_localizer_v2 import VoxelMapLocalizerV2
+from voxel_map_localizer_v3 import VoxelMapLocalizerV3
 from a_star.visualizations import visualize_path
 
 import math
@@ -41,6 +43,8 @@ sys.path.append("voxel_map")
 from dataloaders import (
     R3DSemanticDataset,
     OWLViTLabelledDataset,
+    OWLViTLabelledDatasetV2,
+    OWLViTLabelledDatasetV3
 )
 
 
@@ -72,7 +76,7 @@ def recv_array(socket, flags=0, copy=True, track=False):
 
 
 def load_dataset(cfg):
-    if os.path.exists(cfg.cache_path):
+    if (os.path.exists(cfg.cache_path) and cfg.version == 1) or (os.path.exists('v' + str(cfg.version) + cfg.cache_path) and cfg.version != 1):
         if (
             input(
                 "\nWe have found an existing semantic memory, do you want to use it? [y|n]"
@@ -80,24 +84,52 @@ def load_dataset(cfg):
             == "y"
         ):
             print("\n\nSemantic memory ready!\n\n")
-            return torch.load(cfg.cache_path)
+            if cfg.verion == 1:
+                return torch.load(cfg.cache_path)
+            else:
+                return torch.load('v' + str(cfg.version) + cfg.cache_path)
     print(
         "\n\nFetching semantic memory from record3D file, might take some time ....\n\n"
     )
     r3d_dataset = R3DSemanticDataset(
         cfg.dataset_path, cfg.custom_labels, subsample_freq=cfg.sample_freq
     )
-    semantic_memory = OWLViTLabelledDataset(
-        r3d_dataset,
-        owl_model_name=cfg.web_models.owl,
-        sam_model_type=cfg.web_models.sam,
-        device=cfg.memory_load_device,
-        threshold=cfg.threshold,
-        subsample_prob=cfg.subsample_prob,
-        visualize_results=cfg.visualize_results,
-        visualization_path=cfg.visualization_path,
-    )
-    torch.save(semantic_memory, cfg.cache_path)
+    if cfg.version == 3:
+        semantic_memory = OWLViTLabelledDatasetV3(
+            r3d_dataset,
+            #owl_model_name=cfg.web_models.owl,
+            sam_model_type=cfg.web_models.sam,
+            device=cfg.memory_load_device,
+            threshold=cfg.threshold,
+            subsample_prob=cfg.subsample_prob,
+            visualize_results=cfg.visualize_results,
+            visualization_path=cfg.visualization_path,
+        )
+        torch.save(semantic_memory, 'v3' + cfg.cache_path)
+    elif cfg.version == 2:
+        semantic_memory = OWLViTLabelledDatasetV2(
+            r3d_dataset,
+            owl_model_name=cfg.web_models.owl,
+            sam_model_type=cfg.web_models.sam,
+            device=cfg.memory_load_device,
+            threshold=cfg.threshold,
+            subsample_prob=cfg.subsample_prob,
+            visualize_results=cfg.visualize_results,
+            visualization_path=cfg.visualization_path,
+        )
+        torch.save(semantic_memory, 'v2' + cfg.cache_path)
+    else:
+        semantic_memory = OWLViTLabelledDataset(
+            r3d_dataset,
+            owl_model_name=cfg.web_models.owl,
+            sam_model_type=cfg.web_models.sam,
+            device=cfg.memory_load_device,
+            threshold=cfg.threshold,
+            subsample_prob=cfg.subsample_prob,
+            visualize_results=cfg.visualize_results,
+            visualization_path=cfg.visualization_path,
+        )
+        torch.save(semantic_memory, cfg.cache_path)
     print("\n\nSemantic memory ready!\n\n")
     return semantic_memory
 
@@ -119,11 +151,24 @@ def main(cfg):
         cfg.occ_avoid_radius,
         conservative,
     )
-    localizer = VoxelMapLocalizer(
-        semantic_memory,
-        owl_vit_config=cfg.web_models.owl,
-        device=cfg.path_planning_device,
-    )
+    if cfg.version == 3:
+        localizer = VoxelMapLocalizerV3(
+            semantic_memory,
+            #owl_vit_config=cfg.web_models.owl,
+            device=cfg.path_planning_device,
+        )
+    elif cfg.version == 2:
+        localizer = VoxelMapLocalizerV2(
+            semantic_memory,
+            owl_vit_config=cfg.web_models.owl,
+            device=cfg.path_planning_device,
+        )
+    else:
+        localizer = VoxelMapLocalizer(
+            semantic_memory,
+            owl_vit_config=cfg.web_models.owl,
+            device=cfg.path_planning_device,
+        )
 
     obstacle_map = planner.occupancy_map
     minx, miny = obstacle_map.origin
@@ -140,8 +185,13 @@ def main(cfg):
             B = input("B: ")
             end_xyz = localizer.localize_AonB(A, B)
             end_xy = end_xyz[:2]
+            cfg.debug = False
+            start_xyt = [-1.5, -10, 0]
+            paths = planner.plan(
+                start_xy=[-1.5, -10], end_xy=end_xy, remove_line_of_sight_points=True
+            )
             if cfg.pointcloud_visualization:
-                visualize_path(None, end_xyz, cfg)
+                visualize_path(paths, end_xyz, cfg)
         else:
             print("Waiting for the data from Robot")
             start_xyt = recv_array(socket)

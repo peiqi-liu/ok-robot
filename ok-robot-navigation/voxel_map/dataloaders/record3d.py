@@ -50,7 +50,36 @@ class R3DSemanticDataset(Dataset):
         path: str,
         custom_classes: Optional[List[str]] = CLASS_LABELS_200,
         subsample_freq = 1,
+        x1 = None,
+        y1 = None,
+        x2 = None,
+        y2 = None,
+        z_offset = None,
     ):
+        x1 = -6.013387
+        y1 = 1.741216
+        x2 = -6.015079
+        y2 = 1.592178
+        z_offset = -1.406663
+        assert(x1 is None and y1 is None and x2 is None and y2 is None and z_offset is None) \
+                or (x1 is not None and y1 is not None and x2 is not None and y2 is not None and z_offset is not None),\
+                'x1, y1, x2, y2, z_offset would either be all None, or all not None'
+        if x1 is not None:
+            x_offset = x1
+            y_offset = y1
+            theta_offset =  np.arctan2((y2 - y1), (x2 - x1))
+            self.n2r_matrix = np.array([
+                [np.cos(theta_offset), np.sin(theta_offset), 0, 0],
+                [-np.sin(theta_offset), np.cos(theta_offset), 0, 0],
+                [0, 0, 1, 0],
+                [0, 0, 0, 1]
+            ]) @ \
+            np.array([
+                [1, 0, 0, -x_offset],
+                [0, 1, 0, -y_offset],
+                [0, 0, 1, -z_offset],
+                [0, 0, 0, 1]
+            ])
         if path.endswith((".zip", ".r3d")):
             self._path = ZipFile(path)
         else:
@@ -72,7 +101,7 @@ class R3DSemanticDataset(Dataset):
 
         self._metadata = self._read_metadata()
         self.global_xyzs = []
-        self.global_pcds = []
+        # self.global_pcds = None
         self._load_data()
         self._reshape_all_depth_and_conf()
         self.calculate_all_global_xyzs()
@@ -199,6 +228,8 @@ class R3DSemanticDataset(Dataset):
         init_matrix[:3, :3] = as_rotation_matrix(quaternion(qw, qx, qy, qz))
         init_matrix[:3, -1] = [px, py, pz]
         pcd.transform(init_matrix)
+        pcd.transform([[1, 0, 0, 0], [0, 0, -1, 0], [0, 1, 0, 0], [0, 0, 0, 1]])
+        pcd.transform(self.n2r_matrix)
 
         return pcd
 
@@ -209,8 +240,14 @@ class R3DSemanticDataset(Dataset):
             global_xyz_pcd = self.get_global_xyz(i, only_confident=only_confident)
             global_xyz = np.asarray(global_xyz_pcd.points)
             self.global_xyzs.append(global_xyz)
-            #self.global_pcds.append(global_xyz_pcd)
-        #return self.global_xyzs, self.global_pcds
+        #     if global_xyz_pcd is not None:
+        #         global_xyz_pcd.voxel_down_sample(voxel_size = 0.5)
+        #         if self.global_pcds is None:
+        #             self.global_pcds = global_xyz_pcd
+        #         else:
+        #             self.global_pcds += global_xyz_pcd
+        #     # self.global_pcds.append(global_xyz_pcd)
+        # return self.global_xyzs, self.global_pcds
 
     def __len__(self):
         #return len(self.poses)

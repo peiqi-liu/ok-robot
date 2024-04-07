@@ -45,7 +45,7 @@ from dataloaders.record3d import R3DSemanticDataset
 from dataloaders.scannet_200_classes import CLASS_LABELS_200
 
 from torch.utils.data import Dataset
-
+import torch.nn.functional as F
 # import some common libraries
 import sys
 
@@ -54,11 +54,14 @@ from transformers import AutoProcessor, OwlViTForObjectDetection
 import cv2
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
 
-import torch.nn.functional as F
+
 
 # New visualizer class to disable jitter.
 import matplotlib.colors as mplc
 
+device = 'cuda'
+model, preprocess = clip.load("ViT-B/16", device=device)
+model.eval()
 
 def center_to_corners_format(bboxes_center):
     center_x, center_y, width, height = bboxes_center.unbind(-1)
@@ -104,7 +107,7 @@ def post_process_object_detection(
         
     return results
 
-class OWLViTLabelledDataset(Dataset):
+class OWLViTLabelledDatasetV2(Dataset):
     #LSEG_LABEL_WEIGHT = 0.1
     #LSEG_IMAGE_DISTANCE = 10.0
 
@@ -175,7 +178,7 @@ class OWLViTLabelledDataset(Dataset):
         dataloader = DataLoader(dataset, batch_size=1, shuffle=False, pin_memory=False)
         label_idx = 0
         text_strings = [
-            OWLViTLabelledDataset.process_text(x) for x in self._all_classes
+            OWLViTLabelledDatasetV2.process_text(x) for x in self._all_classes
         ]
         for idx, data_dict in tqdm.tqdm(
             enumerate(dataloader), total=len(dataset), desc="Calculating OWL features"
@@ -207,8 +210,23 @@ class OWLViTLabelledDataset(Dataset):
                     boxes=transformed_boxes,
                     multimask_output=False
                 )
-                #print(masks.shape)
                 masks = masks[:, 0, :, :]
+                
+                # masks = []
+                crops = []
+                for box in boxes:
+                    tl_x, tl_y, br_x, br_y = box
+                    #print(tl_x, tl_y, br_x, br_y, image.shape)
+                    # mask = torch.empty((image.shape[1], image.shape[2]), dtype = torch.bool).fill_(False)
+                    # mask[max(int(tl_y), 0): min(int(br_y), image.shape[1]), max(int(tl_x), 0): min(int(br_x), image.shape[2])] = True
+                    # masks.append(mask)
+                    # print(mask.shape)
+                    crops.append(preprocess(transforms.ToPILImage()(image[:, max(int(tl_y), 0): min(int(br_y), image.shape[1]), max(int(tl_x), 0): min(int(br_x), image.shape[2])])))
+                features = model.encode_image(torch.stack(crops, dim = 0).cuda())
+                features = F.normalize(features, dim = -1)
+                # masks = torch.stack(masks, dim = 0)
+                # print(masks.shape)
+                # print(masks)
 
                 reshaped_rgb = einops.rearrange(image, "c h w -> h w c")
                 (
@@ -230,8 +248,8 @@ class OWLViTLabelledDataset(Dataset):
                             0.5, (255, 0, 0), 2)
                     image_vis = cv2.cvtColor(image_vis, cv2.COLOR_RGB2BGR)    
                     segmentation_color_map = np.zeros(image_vis.shape, dtype=np.uint8)
-                    #print(segmentation_color_map.shape, masks.shape, image_vis.shape)
-                    for mask in masks:
+                    # print(segmentation_color_map.shape, masks.shape, image_vis.shape)
+                    for mask in masks: 
                         segmentation_color_map[mask.detach().cpu().numpy()] = [0, 255, 0]
                     image_vis = cv2.addWeighted(image_vis, 0.7, segmentation_color_map, 0.3, 0)
                     cv2.imwrite(str(self._visualization_path / f"{idx}.jpg"), image_vis)
@@ -281,6 +299,7 @@ class OWLViTLabelledDataset(Dataset):
                 torch.as_tensor(
                     (~np.isnan(data_dict["depth"]) & (data_dict["conf"] == 2))
                     & (data_dict["depth"] < 3.0)
+                    #(data_dict["conf"] == 2)
                 )
                 .squeeze(0)
                 .bool()
@@ -311,7 +330,7 @@ class OWLViTLabelledDataset(Dataset):
     def _setup_owl_all_classes(self, view_data: R3DSemanticDataset):
         # Unifying all the class labels. 
         prebuilt_class_names = [
-            OWLViTLabelledDataset.process_text(x)
+            OWLViTLabelledDatasetV2.process_text(x)
             for x in view_data._id_to_name.values()
         ]
         

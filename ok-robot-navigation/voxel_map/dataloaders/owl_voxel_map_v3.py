@@ -50,7 +50,7 @@ from torch.utils.data import Dataset
 import sys
 
 import torchvision.transforms as transforms
-from transformers import AutoProcessor, OwlViTForObjectDetection
+from transformers import AutoProcessor, Owlv2ForObjectDetection
 import cv2
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
 
@@ -74,11 +74,11 @@ def post_process_object_detection(
 ):
     logits, boxes, class_embeddings = outputs.logits, outputs.pred_boxes, outputs.class_embeds
     
-    if target_sizes is not None:
-        if len(logits) != len(target_sizes):
-            raise ValueError(
-                "Make sure that you pass in as many target sizes as the batch dimension of the logits"
-            )
+    # if target_sizes is not None:
+    #     if len(logits) != len(target_sizes):
+    #         raise ValueError(
+    #             "Make sure that you pass in as many target sizes as the batch dimension of the logits"
+    #         )
 
     probs = torch.max(logits, dim=-1)
     scores = torch.sigmoid(probs.values)
@@ -104,14 +104,14 @@ def post_process_object_detection(
         
     return results
 
-class OWLViTLabelledDataset(Dataset):
+class OWLViTLabelledDatasetV3(Dataset):
     #LSEG_LABEL_WEIGHT = 0.1
     #LSEG_IMAGE_DISTANCE = 10.0
 
     def __init__(
         self,
         view_dataset,
-        owl_model_name: str = "google/owlvit-base-patch32",
+        owl_model_name: str = "google/owlv2-base-patch16-ensemble",
         sam_model_type = "vit_b",
         device: str = "cuda",
         threshold: float = 0.1,
@@ -124,7 +124,7 @@ class OWLViTLabelledDataset(Dataset):
             view_dataset.dataset if isinstance(view_dataset, Subset) else view_dataset
         )
         self._image_width, self._image_height = view_data.image_size
-        self._model = OwlViTForObjectDetection.from_pretrained(owl_model_name).to(device)
+        self._model = Owlv2ForObjectDetection.from_pretrained(owl_model_name).to(device)
         self._processor = AutoProcessor.from_pretrained(owl_model_name)
 
         self._device = device
@@ -175,7 +175,7 @@ class OWLViTLabelledDataset(Dataset):
         dataloader = DataLoader(dataset, batch_size=1, shuffle=False, pin_memory=False)
         label_idx = 0
         text_strings = [
-            OWLViTLabelledDataset.process_text(x) for x in self._all_classes
+            OWLViTLabelledDatasetV3.process_text(x) for x in self._all_classes
         ]
         for idx, data_dict in tqdm.tqdm(
             enumerate(dataloader), total=len(dataset), desc="Calculating OWL features"
@@ -184,8 +184,9 @@ class OWLViTLabelledDataset(Dataset):
             xyz = data_dict["xyz_position"]
             for image, coordinates in zip(rgb, xyz):
                 # Now calculate the OWL-ViT detection for this.
-                target_sizes = torch.Tensor([image[0].size()])
+                # target_sizes = torch.Tensor([image[0].size()])
                 inputs = self._processor(text=self._all_classes, images=image, return_tensors="pt")
+                target_sizes = torch.Tensor([inputs.pixel_values.shape[-2:]])
                 for input in inputs:
                     inputs[input] = inputs[input].to(self._device)
                 with torch.no_grad():
@@ -194,6 +195,13 @@ class OWLViTLabelledDataset(Dataset):
                     i = 0
                     text = self._all_classes[i]
                     boxes, scores, labels, features = results[i]["boxes"], results[i]["scores"], results[i]["labels"], results[i]['class_embed']
+                    for i in range(len(boxes)):
+                        tl_x, tl_y, br_x, br_y = boxes[i]
+                        tl_x = tl_x * max(image[0].size()) / target_sizes[0, 0].item()
+                        br_x = br_x * max(image[0].size()) / target_sizes[0, 0].item()
+                        tl_y = tl_y * max(image[0].size()) / target_sizes[0, 1].item()
+                        br_y = br_y * max(image[0].size()) / target_sizes[0, 1].item()
+                        boxes[i] = torch.tensor([tl_x, tl_y, br_x, br_y]).to(self._device)
                 
                 # Now run SAM to compute segmentation mask
                 input_boxes = boxes.detach().to(mask_predictor.device)
@@ -311,7 +319,7 @@ class OWLViTLabelledDataset(Dataset):
     def _setup_owl_all_classes(self, view_data: R3DSemanticDataset):
         # Unifying all the class labels. 
         prebuilt_class_names = [
-            OWLViTLabelledDataset.process_text(x)
+            OWLViTLabelledDatasetV3.process_text(x)
             for x in view_data._id_to_name.values()
         ]
         

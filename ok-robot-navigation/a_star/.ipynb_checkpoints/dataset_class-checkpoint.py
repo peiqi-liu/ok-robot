@@ -248,7 +248,7 @@ class R3DDataset(Dataset[PosedRGBDItem]):
         self,
         path,
         *,
-        use_depth_shape: bool = True,
+        use_depth_shape: bool = False,
     ) -> None:
         """Defines a dataset for iterating samples from an R3D file.
 
@@ -293,30 +293,7 @@ class R3DDataset(Dataset[PosedRGBDItem]):
                 [0, 0, 0, 1],
             ]
         )
-
-        x1 = -6.013387
-        y1 = 1.741216
-        x2 = -6.015079
-        y2 = 1.592178
-        z_offset = -1.406663
-        x_offset = x1
-        y_offset = y1
-        theta_offset =  np.arctan2((y2 - y1), (x2 - x1))
-        n2r_matrix = np.array([
-            [np.cos(theta_offset), np.sin(theta_offset), 0, 0],
-            [-np.sin(theta_offset), np.cos(theta_offset), 0, 0],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]
-        ]) @ \
-        np.array([
-            [1, 0, 0, -x_offset],
-            [0, 1, 0, -y_offset],
-            [0, 0, 1, -z_offset],
-            [0, 0, 0, 1]
-        ])
-
         self.poses = affine_matrix @ self.poses
-        self.poses = n2r_matrix @ self.poses
 
     def __len__(self) -> int:
         return len(self.imgs_arr)
