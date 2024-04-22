@@ -53,6 +53,7 @@ import torchvision.transforms as transforms
 from transformers import AutoProcessor, OwlViTForObjectDetection
 import cv2
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
+# from mobile_sam import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
 
 
 
@@ -155,10 +156,12 @@ class OWLViTLabelledDatasetV2(Dataset):
         elif sam_model_type == 'vit_l':
             url = 'https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth'
             sam_model_path_name = 'sam_vit_l_0b3195.pth'
-        else:
-            sam_model_type = 'vit_h'
+        elif sam_model_type == 'vit_h':
             url = 'https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth'
             sam_model_path_name = 'sam_vit_h_4b8939.pth'
+        else:
+            sam_model_type = 'vit_t'
+            sam_model_path_name = '/data/peiqi/weight/mobile_sam.pt'
         if not os.path.exists(sam_model_path_name):
             wget.download(url, out = sam_model_path_name)
         sam = sam_model_registry[sam_model_type](checkpoint=sam_model_path_name)

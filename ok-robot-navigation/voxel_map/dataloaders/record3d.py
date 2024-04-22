@@ -56,30 +56,30 @@ class R3DSemanticDataset(Dataset):
         y2 = None,
         z_offset = None,
     ):
-        x1 = -6.013387
-        y1 = 1.741216
-        x2 = -6.015079
-        y2 = 1.592178
-        z_offset = -1.406663
-        assert(x1 is None and y1 is None and x2 is None and y2 is None and z_offset is None) \
-                or (x1 is not None and y1 is not None and x2 is not None and y2 is not None and z_offset is not None),\
-                'x1, y1, x2, y2, z_offset would either be all None, or all not None'
-        if x1 is not None:
-            x_offset = x1
-            y_offset = y1
-            theta_offset =  np.arctan2((y2 - y1), (x2 - x1))
-            self.n2r_matrix = np.array([
-                [np.cos(theta_offset), np.sin(theta_offset), 0, 0],
-                [-np.sin(theta_offset), np.cos(theta_offset), 0, 0],
-                [0, 0, 1, 0],
-                [0, 0, 0, 1]
-            ]) @ \
-            np.array([
-                [1, 0, 0, -x_offset],
-                [0, 1, 0, -y_offset],
-                [0, 0, 1, -z_offset],
-                [0, 0, 0, 1]
-            ])
+        # x1 = -6.013387
+        # y1 = 1.741216
+        # x2 = -6.015079
+        # y2 = 1.592178
+        # z_offset = -1.406663
+        # assert(x1 is None and y1 is None and x2 is None and y2 is None and z_offset is None) \
+        #         or (x1 is not None and y1 is not None and x2 is not None and y2 is not None and z_offset is not None),\
+        #         'x1, y1, x2, y2, z_offset would either be all None, or all not None'
+        # if x1 is not None:
+        #     x_offset = x1
+        #     y_offset = y1
+        #     theta_offset =  np.arctan2((y2 - y1), (x2 - x1))
+        #     self.n2r_matrix = np.array([
+        #         [np.cos(theta_offset), np.sin(theta_offset), 0, 0],
+        #         [-np.sin(theta_offset), np.cos(theta_offset), 0, 0],
+        #         [0, 0, 1, 0],
+        #         [0, 0, 0, 1]
+        #     ]) @ \
+        #     np.array([
+        #         [1, 0, 0, -x_offset],
+        #         [0, 1, 0, -y_offset],
+        #         [0, 0, 1, -z_offset],
+        #         [0, 0, 0, 1]
+        #     ])
         if path.endswith((".zip", ".r3d")):
             self._path = ZipFile(path)
         else:
@@ -229,7 +229,8 @@ class R3DSemanticDataset(Dataset):
         init_matrix[:3, -1] = [px, py, pz]
         pcd.transform(init_matrix)
         pcd.transform([[1, 0, 0, 0], [0, 0, -1, 0], [0, 1, 0, 0], [0, 0, 0, 1]])
-        pcd.transform(self.n2r_matrix)
+        if hasattr(self, 'n2r_matrix'):
+            pcd.transform(self.n2r_matrix)
 
         return pcd
 

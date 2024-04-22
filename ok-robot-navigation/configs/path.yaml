@@ -1,6 +1,6 @@
 # debug=True: generate localization result for each text query; debug=False: communicate with robots and send planned path to robots
 debug: True
-version: 1
+version: 2
 
 #"conservative_vlmap" (space not scanned is non-navigable) "brave_vlmap" (sapce scanned is navigable, used when you forget to scan the floor)
 map_type: "conservative_vlmap" # "conservative_vlmap" "brave_vlmap"
@@ -28,9 +28,9 @@ min_height: -0.8
 pointcloud_visualization: True
 
 # Parameters needed for loading semantic memory
-cache_path: 'kitchen.pt'
+cache_path: 'chuanyang.pt'
 pointcloud_path: 'pointcloud.ply'
-dataset_path: "Kitchen.r3d"
+dataset_path: "/data/peiqi/r3d/LeoFriendKitchen.r3d"
 
 # devices for loading semantic memory, we have a device for fetching semantic memory 
 # and a device for running localization and path planning
@@ -40,7 +40,7 @@ memory_load_device: 'cuda'
 path_planning_device: 'cuda'
 
 # Data loading and labelling specs
-sample_freq: 5 # sample frames from record3D file with this fps
+sample_freq: 10 # sample frames from record3D file with this fps
 threshold: 0.15 # owl-vit confidence threshold
 subsample_prob: 0.005 # sampling probability for raw points (usually we will have millions of points from record3D file)
 

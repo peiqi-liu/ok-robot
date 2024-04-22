@@ -84,7 +84,7 @@ def load_dataset(cfg):
             == "y"
         ):
             print("\n\nSemantic memory ready!\n\n")
-            if cfg.verion == 1:
+            if cfg.version == 1:
                 return torch.load(cfg.cache_path)
             else:
                 return torch.load('v' + str(cfg.version) + cfg.cache_path)
@@ -185,13 +185,7 @@ def main(cfg):
             B = input("B: ")
             end_xyz = localizer.localize_AonB(A, B)
             end_xy = end_xyz[:2]
-            cfg.debug = False
-            start_xyt = [-1.5, -10, 0]
-            paths = planner.plan(
-                start_xy=[-1.5, -10], end_xy=end_xy, remove_line_of_sight_points=True
-            )
-            if cfg.pointcloud_visualization:
-                visualize_path(paths, end_xyz, cfg)
+            print(end_xy)
         else:
             print("Waiting for the data from Robot")
             start_xyt = recv_array(socket)
@@ -258,10 +252,10 @@ def main(cfg):
             axes[1].scatter(xs, ys, c="cyan", s=10)
             axes[1].scatter(end_xyz[0], end_xyz[1], s=50, c="g")
         elif not cfg.debug:
-            axes[0].scatter(start_xyt[0], start_xyt[1], s=50, c="white")
-            axes[0].scatter(end_xyz[0], end_xyz[1], s=50, c="g")
+            axes[1].scatter(start_xyt[0], start_xyt[1], s=50, c="white")
+            axes[1].scatter(end_xyz[0], end_xyz[1], s=50, c="g")
         else:
-            axes[0].scatter(end_xyz[0], end_xyz[1], s=50, c="g")
+            axes[1].scatter(end_xyz[0], end_xyz[1], s=50, c="g")
 
         if not os.path.exists(cfg.save_file + "/" + A):
             os.makedirs(cfg.save_file + "/" + A)
