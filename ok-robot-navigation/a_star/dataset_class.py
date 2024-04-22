@@ -301,7 +301,6 @@ class R3DDataset(Dataset[PosedRGBDItem]):
             self.imgs_arr, self.depths_arr, self.masks_arr = get_arrs(r3d_file, self.metadata, self.use_depth_shape, subsample = subsample_freq, shape = shape)
 
         self.intrinsics = self.metadata.intrinsics
-        print(self.metadata.rgb_shape, self.metadata.depth_shape, self.metadata.intrinsics)
         if shape is not None:
             dh, dw = self.metadata.rgb_shape
             arr_h, arr_w = shape

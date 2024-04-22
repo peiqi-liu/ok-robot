@@ -15,6 +15,7 @@ from dataloaders.scannet_200_classes import CLASS_LABELS_200
 from segment_anything import sam_model_registry, SamPredictor
 from transformers import AutoProcessor, OwlViTForObjectDetection
 import clip
+from transformers import AutoProcessor, AutoModel
 from torchvision import transforms
 
 import os
@@ -267,7 +268,18 @@ class SemanticMemoryEval:
             valid_rgb = rgb.permute(1, 2, 0)[valid_mask]
             self.add_to_voxel_pcd(valid_xyz, feature, valid_rgb)
     
-    def add_to_voxel_pcd(self, valid_xyz, feature, valid_rgb, weights = None):
+    def add_to_voxel_pcd(self, valid_xyz, feature, valid_rgb, weights = None, threshold = 0.85):
+        selected_indices = torch.randperm(len(valid_xyz))[:int((1 - threshold) * len(valid_xyz))]
+        if len(selected_indices) == 0:
+            return
+        if valid_xyz is not None:
+            valid_xyz = valid_xyz[selected_indices]
+        if feature is not None:
+            feature = feature[selected_indices]
+        if valid_rgb is not None:
+            valid_rgb = valid_rgb[selected_indices]
+        if weights is not None:
+            weights = weights[selected_indices]
         self.voxel_map_localizer.add(points = valid_xyz, 
                                 features = feature,
                                 rgb = valid_rgb,
@@ -395,13 +407,13 @@ def eval_instance(dataset, csv_file):
 total_semantic_success = 0
 total_queries = 0
 for dataset_file, csv_file in zip(
-    ['LeoBedroom.r3d', 'VenkyRoom.r3d', 'robot.pkl', 'VenthyaKitchen.r3d'], 
-    ['leoroom.csv', 'venkyroom.csv', 'nyukitchen.csv', 'venthyakitchen.csv']):
+    ['LeoBedroom.r3d', 'VenkyRoom.r3d', 'robot.pkl', 'LeoFriendKitchen.r3d', 'VenthyaKitchen.r3d'], 
+    ['leoroom.csv', 'venkyroom.csv', 'nyukitchen.csv', 'chuanyangkitchen.csv', 'venthyakitchen.csv']):
     print('-' * 20, 'Evaluating results of ', dataset_file, '-' * 20, '\n')
     print('-' * 10, 'Semantic Memory', '-' * 10)
     if dataset_file[-3:] == 'r3d':
-        dataset = R3DDataset('/data/peiqi/r3d/' + dataset_file, subsample_freq = 10, shape = (640, 480))
-        # dataset = R3DDataset('/data/peiqi/r3d/' + dataset_file, subsample_freq = 20)
+        # dataset = R3DDataset('/data/peiqi/r3d/' + dataset_file, subsample_freq = 10, shape = (640, 480))
+        dataset = R3DDataset('/data/peiqi/r3d/' + dataset_file, subsample_freq = 10)
     else:
         dataset = HomeRobotDataset(dataset_file)
     pred_xyzs, xyzs, labels, affords, success_num = eval_semantic(dataset, csv_file)
@@ -426,7 +438,8 @@ for dataset_file, csv_file in zip(
     print('-' * 20, 'Evaluating results of ', dataset_file, '-' * 20, '\n')
     print('-' * 10, 'Instance Memory', '-' * 10)
     if dataset_file[-3:] == 'r3d':
-        dataset = R3DDataset('/data/peiqi/r3d/' + dataset_file, subsample_freq = 10, shape = (640, 480))
+        # dataset = R3DDataset('/data/peiqi/r3d/' + dataset_file, subsample_freq = 10, shape = (640, 480))
+        dataset = R3DDataset('/data/peiqi/r3d/' + dataset_file, subsample_freq = 10)
     else:
         dataset = HomeRobotDataset(dataset_file)
     pred_xyzs, xyzs, labels, affords, success_num = eval_instance(dataset, csv_file)
