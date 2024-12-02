@@ -44,11 +44,13 @@ class ObjectHandler:
         if self.cfgs.open_communication:
             print("\n\nWaiting for data from Robot")
             # Reading color array
-            colors = self.socket.recv_array()
+            # colors = self.socket.recv_array()
+            colors = self.socket.recv_rgb_img()
             self.socket.send_data("RGB received")
 
             # Depth data
-            depths = self.socket.recv_array()
+            # depths = self.socket.recv_array()
+            depths = self.socket.recv_depth_img()
             # print(np.max(depths), np.min(depths))
             self.socket.send_data("depth received")
 
@@ -266,7 +268,7 @@ class ObjectHandler:
 
         x_margin, z_margin = 0.1, 0
         x_mask = (transformed_x < (px + x_margin)) & (transformed_x > (px - x_margin))
-        y_mask = (transformed_y < 0) & (transformed_y > -1.1)
+        y_mask = (transformed_y < 0) & (transformed_y > -1.2)
         z_mask = (transformed_z < 0) & (transformed_z > (pz - z_margin))
         mask = x_mask & y_mask & z_mask
         py = np.max(transformed_y[mask])
@@ -433,7 +435,7 @@ class ObjectHandler:
                 [
                     filter_gg[0].translation,
                     filter_gg[0].rotation_matrix,
-                    [filter_gg[0].depth, crop_flag, 0],
+                    [filter_gg[0].depth, filter_gg[0].width, 0],
                     data_msg,
                 ]
             )

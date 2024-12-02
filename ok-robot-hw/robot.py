@@ -1,4 +1,5 @@
-from home_robot_hw.remote import StretchClient
+# from home_robot_hw.remote import StretchClient
+from stretch_ros2_bridge.remote import StretchClient
 import numpy as np
 import PyKDL
 import rospy

@@ -123,8 +123,8 @@ class PathPlanner():
         reachable_pts = list(reachable_pts)
         end_pt = self.a_star_planner.to_pt(end_xy)
         # 0.3 and 0.4 are hardcoded as described in OK-Robot paper
-        avoid = math.ceil((0.8 - self.occ_avoid_radius) / self.resolution)
-        ideal_dis = math.floor(0.9 / self.resolution)
+        avoid = math.ceil((0.3 - self.occ_avoid_radius) / self.resolution)
+        ideal_dis = math.floor(0.4 / self.resolution)
         inds = torch.tensor([
             self.a_star_planner.compute_s1(end_pt, reachable_pt) 
             + self.a_star_planner.compute_s2(end_pt, reachable_pt, weight = 8, ideal_dis = ideal_dis)

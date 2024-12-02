@@ -31,6 +31,7 @@ from a_star.data_util import get_posed_rgbd_dataset
 from voxel_map_localizer import VoxelMapLocalizer
 from voxel_map_localizer_v2 import VoxelMapLocalizerV2
 from voxel_map_localizer_v3 import VoxelMapLocalizerV3
+from voxel_map_localizer_v4 import VoxelMapLocalizerV4
 from a_star.visualizations import visualize_path
 
 import math
@@ -44,7 +45,8 @@ from dataloaders import (
     R3DSemanticDataset,
     OWLViTLabelledDataset,
     OWLViTLabelledDatasetV2,
-    OWLViTLabelledDatasetV3
+    OWLViTLabelledDatasetV3,
+    OWLViTLabelledDatasetV4
 )
 
 
@@ -94,7 +96,18 @@ def load_dataset(cfg):
     r3d_dataset = R3DSemanticDataset(
         cfg.dataset_path, cfg.custom_labels, subsample_freq=cfg.sample_freq
     )
-    if cfg.version == 3:
+    if cfg.version == 4:
+        semantic_memory = OWLViTLabelledDatasetV4(
+            r3d_dataset,
+            sam_model_type=cfg.web_models.sam,
+            device=cfg.memory_load_device,
+            threshold=cfg.threshold,
+            subsample_prob=cfg.subsample_prob,
+            visualize_results=cfg.visualize_results,
+            visualization_path=cfg.visualization_path,
+        )
+        torch.save(semantic_memory, 'v4' + cfg.cache_path)
+    elif cfg.version == 3:
         semantic_memory = OWLViTLabelledDatasetV3(
             r3d_dataset,
             #owl_model_name=cfg.web_models.owl,
@@ -151,7 +164,12 @@ def main(cfg):
         cfg.occ_avoid_radius,
         conservative,
     )
-    if cfg.version == 3:
+    if cfg.version == 4:
+        localizer = VoxelMapLocalizerV4(
+            semantic_memory,
+            device=cfg.path_planning_device,
+        )
+    elif cfg.version == 3:
         localizer = VoxelMapLocalizerV3(
             semantic_memory,
             #owl_vit_config=cfg.web_models.owl,

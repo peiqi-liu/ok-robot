@@ -8,12 +8,21 @@ import clip
 from voxel import VoxelizedPointcloud
 
 from typing import List, Optional, Tuple, Union
+from transformers import AutoProcessor, AutoModel
 from torch import Tensor
 
+
 class VoxelMapLocalizer():
-    def __init__(self, model_config = 'ViT-B/16', device = 'cuda'):
+    def __init__(self, siglip = True, device = 'cuda'):
         self.device = device
-        self.clip_model, self.preprocessor = clip.load(model_config, device=device)
+        self.siglip = siglip
+        if siglip:
+            model_config = 'google/siglip-so400m-patch14-384'
+            self.clip_model = AutoModel.from_pretrained(model_config)
+            self.preprocessor = AutoProcessor.from_pretrained(model_config)
+        else:
+            model_config = 'ViT-B/16'
+            self.clip_model, self.preprocessor = clip.load(model_config, device=device)
         self.voxel_pcd = VoxelizedPointcloud().to(self.device)
 
     def add(self,
@@ -37,8 +46,12 @@ class VoxelMapLocalizer():
     def calculate_clip_and_st_embeddings_for_queries(self, queries):
         if isinstance(queries, str):
             queries = [queries] 
-        text = clip.tokenize(queries).to(self.device)
-        all_clip_tokens = self.clip_model.encode_text(text)
+        if self.siglip:
+            inputs = self.preprocessor(text=queries, padding="max_length", return_tensors="pt")
+            all_clip_tokens = self.clip_model.get_text_features(**inputs)
+        else:
+            text = clip.tokenize(queries).to(self.device)
+            all_clip_tokens = self.clip_model.encode_text(text)
         all_clip_tokens = F.normalize(all_clip_tokens, p=2, dim=-1)
         return all_clip_tokens
         

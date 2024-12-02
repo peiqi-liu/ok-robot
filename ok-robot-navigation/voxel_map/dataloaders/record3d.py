@@ -228,7 +228,7 @@ class R3DSemanticDataset(Dataset):
         init_matrix[:3, :3] = as_rotation_matrix(quaternion(qw, qx, qy, qz))
         init_matrix[:3, -1] = [px, py, pz]
         pcd.transform(init_matrix)
-        pcd.transform([[1, 0, 0, 0], [0, 0, -1, 0], [0, 1, 0, 0], [0, 0, 0, 1]])
+        # pcd.transform([[1, 0, 0, 0], [0, 0, -1, 0], [0, 1, 0, 0], [0, 0, 0, 1]])
         if hasattr(self, 'n2r_matrix'):
             pcd.transform(self.n2r_matrix)
 
