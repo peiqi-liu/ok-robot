@@ -18,7 +18,7 @@ import pandas as pd
 import clip
 import pandas as pd
 
-from transformers import AutoProcessor, OwlViTModel
+from transformers import AutoProcessor, OwlViTModel, AutoModel
 import sys
 sys.path.append('voxel-map')
 
@@ -28,17 +28,16 @@ from omegaconf import OmegaConf
 from voxel import VoxelizedPointcloud
 
 class VoxelMapLocalizer():
-    def __init__(self, semantic_memory, owl_vit_config = 'google/owlvit-base-patch32', device = 'cuda'):
+    def __init__(self, semantic_memory, device = 'cuda'):
         self.device = device
         self.dataset = semantic_memory
-        self.model_name = owl_vit_config
         self.clip_model, self.preprocessor = self.load_pretrained()
         self.voxel_pcd = self.load_pcd()
 
     def load_pretrained(self):
-        # As mentioned, we only support owlvit-base-patch32 for now
-        model = OwlViTModel.from_pretrained(self.model_name).to(self.device)
-        preprocessor = AutoProcessor.from_pretrained(self.model_name)
+        model = AutoModel.from_pretrained("google/siglip-so400m-patch14-384").to(self.device)
+        preprocessor = AutoProcessor.from_pretrained("google/siglip-so400m-patch14-384")
+        model.eval()
         return model, preprocessor
 
     
@@ -51,22 +50,20 @@ class VoxelMapLocalizer():
         return voxel_pcd
 
     def calculate_clip_and_st_embeddings_for_queries(self, queries):
-        with torch.no_grad():
-            # We only support owl-vit for now
-            inputs = self.preprocessor(
-                text=[queries], return_tensors="pt"
-            )
-            inputs['input_ids'] = inputs['input_ids'].to(self.device)
-            inputs['attention_mask'] = inputs['attention_mask'].to(self.device)
-            all_clip_tokens = self.clip_model.get_text_features(**inputs)
-            all_clip_tokens = F.normalize(all_clip_tokens, p=2, dim=-1)
+        if isinstance(queries, str):
+            queries = [queries] 
+        inputs = self.preprocessor(text=queries, padding="max_length", return_tensors="pt")
+        for input in inputs:
+            inputs[input] = inputs[input].to(self.device)
+        all_clip_tokens = self.clip_model.get_text_features(**inputs)
+        all_clip_tokens = F.normalize(all_clip_tokens, p=2, dim=-1)
         return all_clip_tokens
         
     def find_alignment_over_model(self, queries):
         clip_text_tokens = self.calculate_clip_and_st_embeddings_for_queries(queries)
         points, features, _, _ = self.voxel_pcd.get_pointcloud()
         features = F.normalize(features, p=2, dim=-1)
-        point_alignments = clip_text_tokens.detach().cpu() @ features.T
+        point_alignments = clip_text_tokens.detach().cpu().float() @ features.float().T
     
         print(point_alignments.shape)
         return point_alignments

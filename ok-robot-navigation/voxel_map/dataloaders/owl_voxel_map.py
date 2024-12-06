@@ -45,20 +45,17 @@ from dataloaders.record3d import R3DSemanticDataset
 from dataloaders.scannet_200_classes import CLASS_LABELS_200
 
 from torch.utils.data import Dataset
-
+import torch.nn.functional as F
 # import some common libraries
 import sys
 
 import torchvision.transforms as transforms
-from transformers import AutoProcessor, OwlViTForObjectDetection
+from transformers import AutoProcessor, OwlViTForObjectDetection, AutoModel
 import cv2
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
 
-import torch.nn.functional as F
-
 # New visualizer class to disable jitter.
 import matplotlib.colors as mplc
-
 
 def center_to_corners_format(bboxes_center):
     center_x, center_y, width, height = bboxes_center.unbind(-1)
@@ -125,6 +122,9 @@ class OWLViTLabelledDataset(Dataset):
         )
         self._image_width, self._image_height = view_data.image_size
         self._model = OwlViTForObjectDetection.from_pretrained(owl_model_name).to(device)
+        self._clip_model = AutoModel.from_pretrained("google/siglip-so400m-patch14-384").to('cuda')
+        self._clip_preprocess = AutoProcessor.from_pretrained("google/siglip-so400m-patch14-384")
+        self._clip_model.eval()
         self._processor = AutoProcessor.from_pretrained(owl_model_name)
 
         self._device = device
@@ -152,8 +152,7 @@ class OWLViTLabelledDataset(Dataset):
         elif sam_model_type == 'vit_l':
             url = 'https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth'
             sam_model_path_name = 'sam_vit_l_0b3195.pth'
-        else:
-            sam_model_type = 'vit_h'
+        elif sam_model_type == 'vit_h':
             url = 'https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth'
             sam_model_path_name = 'sam_vit_h_4b8939.pth'
         if not os.path.exists(sam_model_path_name):
@@ -207,8 +206,16 @@ class OWLViTLabelledDataset(Dataset):
                     boxes=transformed_boxes,
                     multimask_output=False
                 )
-                #print(masks.shape)
                 masks = masks[:, 0, :, :]
+                
+                # masks = []
+                crops = []
+                for box in boxes:
+                    tl_x, tl_y, br_x, br_y = box
+                    crops.append(transforms.ToPILImage()(image[:, max(int(tl_y), 0): min(int(br_y), image.shape[1]), max(int(tl_x), 0): min(int(br_x), image.shape[2])]))
+                inputs = self._clip_preprocess(images = crops, padding="max_length", return_tensors="pt").to(self._device)
+                features = self._clip_model.get_image_features(**inputs)
+                features = F.normalize(features, dim = -1)
 
                 reshaped_rgb = einops.rearrange(image, "c h w -> h w c")
                 (
@@ -230,8 +237,8 @@ class OWLViTLabelledDataset(Dataset):
                             0.5, (255, 0, 0), 2)
                     image_vis = cv2.cvtColor(image_vis, cv2.COLOR_RGB2BGR)    
                     segmentation_color_map = np.zeros(image_vis.shape, dtype=np.uint8)
-                    #print(segmentation_color_map.shape, masks.shape, image_vis.shape)
-                    for mask in masks:
+                    # print(segmentation_color_map.shape, masks.shape, image_vis.shape)
+                    for mask in masks: 
                         segmentation_color_map[mask.detach().cpu().numpy()] = [0, 255, 0]
                     image_vis = cv2.addWeighted(image_vis, 0.7, segmentation_color_map, 0.3, 0)
                     cv2.imwrite(str(self._visualization_path / f"{idx}.jpg"), image_vis)
@@ -267,6 +274,7 @@ class OWLViTLabelledDataset(Dataset):
                     label_idx += 1
                     
         del self._model
+        del self._clip_model
 
         # Now, we summerize xyz coordinates, rgb values, confidence scores, and image features for each point.
         self._label_xyz = torch.cat(self._label_xyz).float()
@@ -281,6 +289,7 @@ class OWLViTLabelledDataset(Dataset):
                 torch.as_tensor(
                     (~np.isnan(data_dict["depth"]) & (data_dict["conf"] == 2))
                     & (data_dict["depth"] < 3.0)
+                    #(data_dict["conf"] == 2)
                 )
                 .squeeze(0)
                 .bool()

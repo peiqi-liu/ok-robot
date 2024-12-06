@@ -1,6 +1,5 @@
 # debug=True: generate localization result for each text query; debug=False: communicate with robots and send planned path to robots
 debug: True
-version: 4
 
 #"conservative_vlmap" (space not scanned is non-navigable) "brave_vlmap" (sapce scanned is navigable, used when you forget to scan the floor)
 map_type: "conservative_vlmap" # "conservative_vlmap" "brave_vlmap"
