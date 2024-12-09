@@ -6,7 +6,6 @@ import numpy as np
 import PyKDL
 from PIL import Image
 
-from robot import HelloRobot
 from args import get_args
 from camera import RealSenseCamera
 from utils.grasper_utils import pickup, move_to_point, capture_and_process_image
@@ -264,8 +263,17 @@ def run():
     
     base_node = TOP_CAMERA_NODE
 
-    transform_node = GRIPPER_MID_NODE
-    hello_robot = HelloRobot(end_link = transform_node)
+    if args.ros == 1:
+        transform_node = "link_straight_gripper"
+        from robot import HelloRobot
+        hello_robot = HelloRobot(end_link = transform_node)
+    else:
+        transform_node = "link_gripper_s3_body"
+        from robot_ros2 import HelloRobot
+        import rclpy
+        rclpy.init()
+        hello_robot = HelloRobot(end_link = transform_node)
+
 
     context = zmq.Context()
     nav_socket = context.socket(zmq.REQ)

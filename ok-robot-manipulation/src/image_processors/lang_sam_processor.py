@@ -1,10 +1,11 @@
-from typing import List, Type, Tuple
+from typing import List, Tuple, Type
 
-from PIL import Image
+import cv2
 import numpy as np
-
+import rerun as rr
 from image_processors.image_processor import ImageProcessor
 from lang_sam import LangSAM
+from PIL import Image
 
 
 class LangSAMProcessor(ImageProcessor):
@@ -30,10 +31,14 @@ class LangSAMProcessor(ImageProcessor):
         seg_mask = np.array(masks[0])
         bbox = np.array(boxes[0], dtype=int)
 
-        if visualize_box:
-            self.draw_bounding_box(image, bbox, box_filename)
-
         if visualize_mask:
+            self.draw_bounding_box(image, bbox, box_filename)
             self.draw_mask_on_image(image, seg_mask, mask_filename)
+            if mask_filename is not None:
+                rr.log(
+                    "object_detection_results",
+                    rr.Image(cv2.imread(mask_filename)[:, :, [2, 1, 0]]),
+                    static=True,
+                )
 
         return seg_mask, bbox

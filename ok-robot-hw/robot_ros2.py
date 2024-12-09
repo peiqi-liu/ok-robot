@@ -15,7 +15,6 @@ import os
 from utils import kdl_tree_from_urdf_model
 from global_parameters import *
 
-
 OVERRIDE_STATES = {}
 
 class HelloRobot:
@@ -25,7 +24,7 @@ class HelloRobot:
         gripper_threshold = 7.0, 
         stretch_gripper_max = 0.3, 
         stretch_gripper_min = 0, 
-        end_link = GRIPPER_MID_NODE
+        end_link = "link_gripper_s3_body"
     ):
         self.STRETCH_GRIPPER_MAX = stretch_gripper_max
         self.STRETCH_GRIPPER_MIN = stretch_gripper_min
@@ -42,7 +41,8 @@ class HelloRobot:
         self.set_end_link(end_link)
         
         # Initialize StretchClient controller (from home_robot/src/home_robot_hw/home_robot_hw/remote/api.py)
-        self.robot = StretchClient(urdf_path = stretch_client_urdf_file)
+        # self.robot = StretchClient(urdf_path = stretch_client_urdf_file)
+        self.robot = StretchClient()
         self.robot.switch_to_manipulation_mode()
         time.sleep(2)
 

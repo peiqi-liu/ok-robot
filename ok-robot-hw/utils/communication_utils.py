@@ -1,5 +1,6 @@
 import numpy as np
 import zmq
+import cv2
 
 # use zmq to send a numpy array
 def send_array(socket, A, flags=0, copy=True, track=False):
