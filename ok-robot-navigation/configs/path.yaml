@@ -17,7 +17,7 @@ port_number: 5555
 save_file: "./test"
 
 # min (floor) and max (ceil) height for building obstalce map
-min_height: -0.8
+min_height: -0.95
 # max_height = min_height + 1.5 (check path_planning.py for more details)
 
 # We provide very-easy-to-understand navigation visualization in a pointcloud opened in open3d, nevertheless
@@ -27,9 +27,9 @@ min_height: -0.8
 pointcloud_visualization: True
 
 # Parameters needed for loading semantic memory
-cache_path: 'sample.pt'
-pointcloud_path: 'pointcloud.ply'
-dataset_path: "r3d/sample.r3d"
+cache_path: 'env2.pt'
+pointcloud_path: 'env2.ply'
+dataset_path: "env2.r3d"
 
 # devices for loading semantic memory, we have a device for fetching semantic memory 
 # and a device for running localization and path planning
@@ -39,7 +39,7 @@ memory_load_device: 'cuda'
 path_planning_device: 'cuda'
 
 # Data loading and labelling specs
-sample_freq: 3 # sample frames from record3D file with this fps
+sample_freq: 10 # sample frames from record3D file with this fps
 threshold: 0.15 # owl-vit confidence threshold
 subsample_prob: 0.005 # sampling probability for raw points (usually we will have millions of points from record3D file)
 

@@ -123,13 +123,13 @@ class AStarPlanner():
         return self.compute_dis(a, obj)
 
     def compute_s2(self, a: tuple[int, int], obj: tuple[int, int], weight = 8, ideal_dis = 4) -> float:
-        return weight * (4 - min(self.compute_dis(a, obj), 4))
+        return weight * (ideal_dis - min(self.compute_dis(a, obj), ideal_dis))
 
     def compute_s3(self, a: tuple[int, int], weight = 8, avoid = 1) -> float:
         return self.compute_obstacle_punishment(a, weight, avoid)
 
     # A* heuristic
-    def compute_heuristic(self, a: tuple[int, int], b: tuple[int, int], weight = 12, avoid = 3) -> float:
+    def compute_heuristic(self, a: tuple[int, int], b: tuple[int, int], weight = 12, avoid = 6) -> float:
         return self.compute_dis(a, b) + weight * self.compute_obstacle_punishment(a, weight, avoid)\
             + self.compute_obstacle_punishment(b, weight, avoid)
 

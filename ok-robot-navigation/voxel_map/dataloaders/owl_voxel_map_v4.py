@@ -53,9 +53,16 @@ import torchvision.transforms as transforms
 from transformers import AutoProcessor, OwlViTForObjectDetection, AutoModel
 import cv2
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
+# from mobile_sam import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
+
+
 
 # New visualizer class to disable jitter.
 import matplotlib.colors as mplc
+
+model = AutoModel.from_pretrained("google/siglip-so400m-patch14-384").to('cuda')
+preprocess = AutoProcessor.from_pretrained("google/siglip-so400m-patch14-384")
+model.eval()
 
 def center_to_corners_format(bboxes_center):
     center_x, center_y, width, height = bboxes_center.unbind(-1)
@@ -101,7 +108,7 @@ def post_process_object_detection(
         
     return results
 
-class OWLViTLabelledDataset(Dataset):
+class OWLViTLabelledDatasetV4(Dataset):
     #LSEG_LABEL_WEIGHT = 0.1
     #LSEG_IMAGE_DISTANCE = 10.0
 
@@ -122,9 +129,6 @@ class OWLViTLabelledDataset(Dataset):
         )
         self._image_width, self._image_height = view_data.image_size
         self._model = OwlViTForObjectDetection.from_pretrained(owl_model_name).to(device)
-        self._clip_model = AutoModel.from_pretrained("google/siglip-so400m-patch14-384").to('cuda')
-        self._clip_preprocess = AutoProcessor.from_pretrained("google/siglip-so400m-patch14-384")
-        self._clip_model.eval()
         self._processor = AutoProcessor.from_pretrained(owl_model_name)
 
         self._device = device
@@ -155,6 +159,9 @@ class OWLViTLabelledDataset(Dataset):
         elif sam_model_type == 'vit_h':
             url = 'https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth'
             sam_model_path_name = 'sam_vit_h_4b8939.pth'
+        else:
+            sam_model_type = 'vit_t'
+            sam_model_path_name = '/data/peiqi/weight/mobile_sam.pt'
         if not os.path.exists(sam_model_path_name):
             wget.download(url, out = sam_model_path_name)
         sam = sam_model_registry[sam_model_type](checkpoint=sam_model_path_name)
@@ -174,7 +181,7 @@ class OWLViTLabelledDataset(Dataset):
         dataloader = DataLoader(dataset, batch_size=1, shuffle=False, pin_memory=False)
         label_idx = 0
         text_strings = [
-            OWLViTLabelledDataset.process_text(x) for x in self._all_classes
+            OWLViTLabelledDatasetV4.process_text(x) for x in self._all_classes
         ]
         for idx, data_dict in tqdm.tqdm(
             enumerate(dataloader), total=len(dataset), desc="Calculating OWL features"
@@ -212,10 +219,18 @@ class OWLViTLabelledDataset(Dataset):
                 crops = []
                 for box in boxes:
                     tl_x, tl_y, br_x, br_y = box
+                    #print(tl_x, tl_y, br_x, br_y, image.shape)
+                    # mask = torch.empty((image.shape[1], image.shape[2]), dtype = torch.bool).fill_(False)
+                    # mask[max(int(tl_y), 0): min(int(br_y), image.shape[1]), max(int(tl_x), 0): min(int(br_x), image.shape[2])] = True
+                    # masks.append(mask)
+                    # print(mask.shape)
                     crops.append(transforms.ToPILImage()(image[:, max(int(tl_y), 0): min(int(br_y), image.shape[1]), max(int(tl_x), 0): min(int(br_x), image.shape[2])]))
-                inputs = self._clip_preprocess(images = crops, padding="max_length", return_tensors="pt").to(self._device)
-                features = self._clip_model.get_image_features(**inputs)
+                inputs = preprocess(images = crops, padding="max_length", return_tensors="pt").to(self._device)
+                features = model.get_image_features(**inputs)
                 features = F.normalize(features, dim = -1)
+                # masks = torch.stack(masks, dim = 0)
+                # print(masks.shape)
+                # print(masks)
 
                 reshaped_rgb = einops.rearrange(image, "c h w -> h w c")
                 (
@@ -274,7 +289,6 @@ class OWLViTLabelledDataset(Dataset):
                     label_idx += 1
                     
         del self._model
-        del self._clip_model
 
         # Now, we summerize xyz coordinates, rgb values, confidence scores, and image features for each point.
         self._label_xyz = torch.cat(self._label_xyz).float()
@@ -320,7 +334,7 @@ class OWLViTLabelledDataset(Dataset):
     def _setup_owl_all_classes(self, view_data: R3DSemanticDataset):
         # Unifying all the class labels. 
         prebuilt_class_names = [
-            OWLViTLabelledDataset.process_text(x)
+            OWLViTLabelledDatasetV4.process_text(x)
             for x in view_data._id_to_name.values()
         ]
         

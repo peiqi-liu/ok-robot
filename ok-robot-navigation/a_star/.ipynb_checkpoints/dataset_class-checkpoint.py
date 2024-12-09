@@ -51,7 +51,6 @@ from tqdm import tqdm
 from torch import Tensor
 
 from typing import NamedTuple
-import math
 
 class PosedRGBDItem(NamedTuple):
     """Defines a posed RGB image.
@@ -117,8 +116,6 @@ def get_arrs(
     r3d_file: ZipFile,
     meta: Metadata,
     use_depth_shape: bool = True,
-    subsample: int = 1,
-    shape: tuple = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Loads the arrays from the .r3d file.
 
@@ -128,8 +125,6 @@ def get_arrs(
         use_depth_shape: If True, the image array will be resized to the depth
             shape; otherwise, the depth array will be resized to the image
             shape.
-        subsample: One out of `subsample` images in .r3d file will be added to 
-            the dataset. 
 
     Returns:
         The images array, with shape (T, H, W, 3); the depth array, with
@@ -143,7 +138,7 @@ def get_arrs(
     depth_re_expr = re.compile(r"^rgbd/(\d+).depth$")
     conf_re_expr = re.compile(r"^rgbd/(\d+).conf$")
 
-    tsz = math.ceil(meta.timestamps.shape[0] / subsample)
+    tsz = meta.timestamps.shape[0]
     rgb_h, rgb_w = meta.rgb_shape
     depth_h, depth_w = meta.depth_shape
 
@@ -160,9 +155,6 @@ def get_arrs(
     def to_depth_shape(arr: np.ndarray) -> np.ndarray:
         return cv2.resize(arr, (depth_w, depth_h), interpolation=cv2.INTER_NEAREST)
 
-    def to_shape(arr: np.ndarray) -> np.ndarray:
-        return cv2.resize(arr, (arr_w, arr_h), interpolation=cv2.INTER_NEAREST)
-
     img_fnames = get_filenames(img_re_expr)
     depth_fnames = get_filenames(depth_re_expr)
     conf_fnames = get_filenames(conf_re_expr)
@@ -171,10 +163,7 @@ def get_arrs(
     if len(conf_fnames) != len(img_fnames):
         conf_fnames = ['' for _ in range(len(img_fnames))]
 
-    if shape is not None:
-        arr_h, arr_w = shape
-    else:
-        arr_h, arr_w = (depth_h, depth_w) if use_depth_shape else (rgb_h, rgb_w)
+    arr_h, arr_w = (depth_h, depth_w) if use_depth_shape else (rgb_h, rgb_w)
     img_arrs = np.zeros((tsz, arr_h, arr_w, 3), dtype=np.uint8)
     depth_arrs = np.zeros((tsz, arr_h, arr_w), dtype=np.float32)
     conf_arrs = np.zeros((tsz, arr_h, arr_w), dtype=np.uint8)
@@ -182,16 +171,10 @@ def get_arrs(
     zipped = zip(img_fnames, depth_fnames, conf_fnames)
     iterable = enumerate(tqdm(zipped, total=tsz, desc="Loading R3D file"))
     for i, (img_fname, depth_fname, conf_fname) in iterable:
-        if i % subsample != 0:
-            continue
         with r3d_file.open(img_fname, "r") as img_f:
             img_arr = np.asarray(Image.open(img_f))
         assert img_arr.shape == (rgb_h, rgb_w, 3)
-        if shape is not None:
-            img_arrs[i // subsample] = to_shape(img_arr)
-        else:
-            img_arrs[i // subsample] = to_depth_shape(img_arr) if use_depth_shape else img_arr
-        # img_arrs[i] = to_depth_shape(img_arr) if use_depth_shape else img_arr
+        img_arrs[i] = to_depth_shape(img_arr) if use_depth_shape else img_arr
 
         with r3d_file.open(depth_fname, "r") as depth_f:
             raw_bytes = depth_f.read()
@@ -199,11 +182,7 @@ def get_arrs(
             depth_arr = np.frombuffer(decompressed_bytes, dtype=np.float32).reshape(depth_h, depth_w).copy()
         depth_is_nan_arr = np.isnan(depth_arr)
         depth_arr[depth_is_nan_arr] = -1.0
-        if shape is not None:
-            depth_arrs[i // subsample] = to_shape(depth_arr)
-        else:
-            depth_arrs[i // subsample] = depth_arr if use_depth_shape else to_img_shape(depth_arr)
-        # depth_arrs[i] = depth_arr if use_depth_shape else to_img_shape(depth_arr)
+        depth_arrs[i] = depth_arr if use_depth_shape else to_img_shape(depth_arr)
 
         if conf_fname == '':
             conf_arr = np.zeros(depth_arr.shape)
@@ -214,11 +193,7 @@ def get_arrs(
                 decompressed_bytes = liblzfse.decompress(raw_bytes)
                 conf_arr = np.frombuffer(decompressed_bytes, dtype=np.uint8).reshape(depth_h, depth_w).copy()
             conf_arr[depth_is_nan_arr] = 0
-        # conf_arrs[i] = conf_arr if use_depth_shape else to_img_shape(conf_arr)
-        if shape is not None:
-            conf_arrs[i // subsample] = to_shape(conf_arr)
-        else:
-            conf_arrs[i // subsample] = conf_arr if use_depth_shape else to_img_shape(conf_arr)
+        conf_arrs[i] = conf_arr if use_depth_shape else to_img_shape(conf_arr)
 
     masks_arrs = conf_arrs != 2
 
@@ -274,8 +249,6 @@ class R3DDataset(Dataset[PosedRGBDItem]):
         path,
         *,
         use_depth_shape: bool = False,
-        subsample_freq = 20,
-        shape: tuple = None
     ) -> None:
         """Defines a dataset for iterating samples from an R3D file.
 
@@ -298,16 +271,9 @@ class R3DDataset(Dataset[PosedRGBDItem]):
 
         with ZipFile(path) as r3d_file:
             self.metadata = read_metadata(r3d_file, self.use_depth_shape)
-            self.imgs_arr, self.depths_arr, self.masks_arr = get_arrs(r3d_file, self.metadata, self.use_depth_shape, subsample = subsample_freq, shape = shape)
+            self.imgs_arr, self.depths_arr, self.masks_arr = get_arrs(r3d_file, self.metadata, self.use_depth_shape)
 
         self.intrinsics = self.metadata.intrinsics
-        if shape is not None:
-            dh, dw = self.metadata.rgb_shape
-            arr_h, arr_w = shape
-            self.intrinsics[0, 0] *= (arr_w / dw)
-            self.intrinsics[1, 1] *= (arr_h / dh)
-            self.intrinsics[0, 2] *= (arr_w / dw)
-            self.intrinsics[1, 2] *= (arr_h / dh)
         affine_matrix = np.array(
             [
                 [1, 0, 0, 0],
@@ -316,7 +282,7 @@ class R3DDataset(Dataset[PosedRGBDItem]):
                 [0, 0, 0, 1],
             ]
         )
-        self.poses = self.metadata.poses[torch.arange(0, len(self.metadata.poses), subsample_freq)] @ affine_matrix
+        self.poses = self.metadata.poses @ affine_matrix
 
         # Converts poses from (X, Z, Y) to (X, -Y, Z).
         affine_matrix = np.array(
@@ -327,30 +293,7 @@ class R3DDataset(Dataset[PosedRGBDItem]):
                 [0, 0, 0, 1],
             ]
         )
-
         self.poses = affine_matrix @ self.poses
-
-        # x1 = -6.013387
-        # y1 = 1.741216
-        # x2 = -6.015079
-        # y2 = 1.592178
-        # z_offset = -1.406663
-        # x_offset = x1
-        # y_offset = y1
-        # theta_offset =  np.arctan2((y2 - y1), (x2 - x1))
-        # n2r_matrix = np.array([
-        #     [np.cos(theta_offset), np.sin(theta_offset), 0, 0],
-        #     [-np.sin(theta_offset), np.cos(theta_offset), 0, 0],
-        #     [0, 0, 1, 0],
-        #     [0, 0, 0, 1]
-        # ]) @ \
-        # np.array([
-        #     [1, 0, 0, -x_offset],
-        #     [0, 1, 0, -y_offset],
-        #     [0, 0, 1, -z_offset],
-        #     [0, 0, 0, 1]
-        # ])
-        # self.poses = n2r_matrix @ self.poses
 
     def __len__(self) -> int:
         return len(self.imgs_arr)
@@ -371,7 +314,7 @@ class HomeRobotDataset(Dataset[PosedRGBDItem]):
         self,
         path,
         min_depth = 0.3,
-        max_depth = 2.0,
+        max_depth = 3.0,
     ) -> None:
         """Dataset for clips recorded from the Home Robot repository.
 

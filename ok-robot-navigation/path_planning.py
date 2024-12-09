@@ -34,13 +34,9 @@ from a_star.visualizations import visualize_path
 import math
 import os
 
-import sys
-
-sys.path.append("voxel_map")
-
 from dataloaders import (
     R3DSemanticDataset,
-    OWLViTLabelledDataset,
+    OWLViTLabelledDataset
 )
 
 
@@ -80,7 +76,10 @@ def load_dataset(cfg):
             == "y"
         ):
             print("\n\nSemantic memory ready!\n\n")
-            return torch.load(cfg.cache_path)
+            if cfg.version == 1:
+                return torch.load(cfg.cache_path)
+            else:
+                return torch.load(cfg.cache_path)
     print(
         "\n\nFetching semantic memory from record3D file, might take some time ....\n\n"
     )
@@ -89,7 +88,6 @@ def load_dataset(cfg):
     )
     semantic_memory = OWLViTLabelledDataset(
         r3d_dataset,
-        owl_model_name=cfg.web_models.owl,
         sam_model_type=cfg.web_models.sam,
         device=cfg.memory_load_device,
         threshold=cfg.threshold,
@@ -121,7 +119,6 @@ def main(cfg):
     )
     localizer = VoxelMapLocalizer(
         semantic_memory,
-        owl_vit_config=cfg.web_models.owl,
         device=cfg.path_planning_device,
     )
 
@@ -140,8 +137,7 @@ def main(cfg):
             B = input("B: ")
             end_xyz = localizer.localize_AonB(A, B)
             end_xy = end_xyz[:2]
-            if cfg.pointcloud_visualization:
-                visualize_path(None, end_xyz, cfg)
+            print(end_xy)
         else:
             print("Waiting for the data from Robot")
             start_xyt = recv_array(socket)
@@ -208,10 +204,10 @@ def main(cfg):
             axes[1].scatter(xs, ys, c="cyan", s=10)
             axes[1].scatter(end_xyz[0], end_xyz[1], s=50, c="g")
         elif not cfg.debug:
-            axes[0].scatter(start_xyt[0], start_xyt[1], s=50, c="white")
-            axes[0].scatter(end_xyz[0], end_xyz[1], s=50, c="g")
+            axes[1].scatter(start_xyt[0], start_xyt[1], s=50, c="white")
+            axes[1].scatter(end_xyz[0], end_xyz[1], s=50, c="g")
         else:
-            axes[0].scatter(end_xyz[0], end_xyz[1], s=50, c="g")
+            axes[1].scatter(end_xyz[0], end_xyz[1], s=50, c="g")
 
         if not os.path.exists(cfg.save_file + "/" + A):
             os.makedirs(cfg.save_file + "/" + A)

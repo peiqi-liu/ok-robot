@@ -10,5 +10,6 @@ def get_args():
     parser.add_argument("-ip", "--ip", help = "Workstation IP")
     parser.add_argument("-np", "--navigation_port", default = 5555, type=int, help = "Navigation port")
     parser.add_argument("-mp", "--manipulation_port", default = 5556, type=int, help = "Manipulation port")
+    parser.add_argument("-ros", "--ros", default = 2, type=int, help = "Ros version, SE 3 uses Ros2 while RE 1 and RE 2 uses Ros1")
 
     return parser.parse_args()
