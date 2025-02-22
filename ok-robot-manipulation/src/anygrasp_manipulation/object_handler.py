@@ -302,7 +302,7 @@ class ObjectHandler:
                 geometries,
                 save_file=self.save_dir + "/placing.jpg",
                 visualize=not self.cfgs.headless,
-                rerun_name="proposed_placing_location",
+                # rerun_name="proposed_placing_location",
             )
 
         point[1] += 0.1
@@ -435,14 +435,14 @@ class ObjectHandler:
                 grippers,
                 visualize=not self.cfgs.headless,
                 save_file=f"{self.save_dir}/poses.jpg",
-                rerun_name="all_anygrasp_estimated_poses",
+                # rerun_name="all_anygrasp_estimated_poses",
             )
             visualize_cloud_geometries(
                 cloud,
                 [filter_grippers[0].paint_uniform_color([1.0, 0.0, 0.0])],
                 visualize=not self.cfgs.headless,
                 save_file=f"{self.save_dir}/best_pose.jpg",
-                rerun_name="selected_pose",
+                # rerun_name="selected_pose",
             )
 
         if self.cfgs.open_communication:
